@@ -1,8 +1,8 @@
 import {  Socket } from "socket.io";
 import { DefaultEventsMap } from "socket.io/dist/typed-events";
-import { writeFile } from "fs";
 import { users } from "../database/users";
 import { messages } from "../database/messages";
+import { readUserFile } from "../readUserFile";
 import { saveUserFile } from "../saveUserFile";
 
 export const socketConnectionEvent = (socket: Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap> & { user?: any }) => {
@@ -19,18 +19,46 @@ export const socketConnectionEvent = (socket: Socket<DefaultEventsMap, DefaultEv
             (el.userId === socket.user.userId || el.userId === choosedUserId) 
             && (el.toUserId === choosedUserId || el.toUserId === socket.user.userId)
         )
-        socket.emit("messages", currentUserMessages);
+
+        const messagesWithFiles = currentUserMessages.map((el: any) => {
+            if(el.fileNames) {
+                const files = el.fileNames.map((el: any) => {
+                    const file = readUserFile(el)
+                    return file
+                })
+                return { ...el, files }
+            }
+            return el
+        });
+
+        socket.emit("messages", messagesWithFiles);
     });
 
-    socket.on("userMessageSend", ({ message, toUserId }) => {
-        const newMessage = {
+    socket.on("userMessageSend", ({ message, toUserId, files }) => {
+        let newMessage: any = {
             id: messages.length + 1,
             userId: socket.user.userId,
             toUserId, 
             message
         }
 
+        if (files?.length) {
+            const fileNames = files.map((el: any) => {
+                saveUserFile(el.file, el.fileName)
+                return el.fileName
+            })
+            newMessage['fileNames'] = fileNames
+        }
+
         messages.push(newMessage)
+
+        if(newMessage.hasOwnProperty('fileNames')) {
+            const files = newMessage.fileNames.map((el: any) => {
+                const file = readUserFile(el)
+                return file
+            })
+            newMessage = { ...newMessage, files}
+        }
 
         socket.emit("newMessage", newMessage);
         socket.to(toUserId).emit("newMessage", newMessage)
@@ -41,12 +69,19 @@ export const socketConnectionEvent = (socket: Socket<DefaultEventsMap, DefaultEv
             (el.userId === socket.user.userId || el.userId === choosedUserId) 
             && (el.toUserId === choosedUserId || el.toUserId === socket.user.userId)
         )
-        socket.emit("messages", currentUserMessages);
-    });
 
-    socket.on("uploadFile", (fileObject: any) => {
-        const { file, fileName } = fileObject
-        saveUserFile()
+        const messagesWithFiles = currentUserMessages.map((el: any) => {
+            if(el.fileNames) {
+                const files = el.fileNames.map((el: any) => {
+                    const file = readUserFile(el)
+                    return file
+                })
+                return { ...el, files }
+            }
+            return el
+        });
+
+        socket.emit("messages", messagesWithFiles);
     });
 
     socket.on("disconnect", () => {

@@ -37,6 +37,7 @@ const io = new Server(httpServer, {
     origin: "http://localhost:8080",
     credentials: true
   },
+  maxHttpBufferSize: 1e8 // 100 MB
 });
 
 socketMiddleware(io)
